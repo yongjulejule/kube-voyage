@@ -2,28 +2,27 @@
 
 ```mermaid
 flowchart LR
-    subgraph Development_Workstation [Development Workstation]
-        Docker_Runtime[Docker Runtime]
-        Video_Streaming[Video Streaming]
-        Video_Storage[Video Storage]
-        RabbitMQ[(RabbitMQ Queue)]
-        History[History]
+    subgraph Kubernetes_Cluster [Kubernetes Cluster]
+        subgraph Video_Service_Namespace [Video Service Namespace]
+            Video_Streaming_Pod[Video Streaming Pod]
+            Video_Storage_Pod[Video Storage Pod]
+            RabbitMQ_Pod[(RabbitMQ Pod)]
+            History_Pod[History Pod]
 
-        Docker_Runtime --> RabbitMQ
-        Docker_Runtime --> Video_Storage
-        Docker_Runtime --> Video_Streaming
-        RabbitMQ --> History
+            Video_Streaming_Pod -->|Microservice Message Flow| Video_Storage_Pod
+            Video_Streaming_Pod -->|Microservice Message Flow| RabbitMQ_Pod
+            RabbitMQ_Pod --> History_Pod
+        end
     end
 
-    Client[Client] -->|Requests| Video_Streaming
-    Video_Streaming -->|Microservice Message Flow| Docker_Runtime
+    Client[Client] -->|Requests| Video_Streaming_Pod
 ```
 
 # k8s
 
 ## Cluster 배포
 
-infra/cluster 참고
+- [infra/cluster 참고](./infra/cluster/README.md)
 
 ## K8s 인프라
 
@@ -47,7 +46,7 @@ helm install mongo bitnami/mongodb -f helm/mongo/values.yaml
   - 노드에 직접 접속해서 권한 바꿔주면 됨 (sudo chown -R 1001:1001 /mnt/data/mongo)
 - 자꾸 유저 생성 안돼서 집적 mongosh 로 접속해서 유저 생성함... 원인 찾아야함
 
-### 내 서비스
+### apps/
 
 - helm create apps 로 helm chart 생성
 - values.yaml 에 기본 values 설정
