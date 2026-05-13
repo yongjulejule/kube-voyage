@@ -1,0 +1,45 @@
+---
+# kubeadm reset 으로 클러스터 상태만 초기화 (VM 은 그대로)
+# CNI 실험 후 깨끗하게 다시 init 하고 싶을 때 사용.
+# 사용: ansible-playbook reset.yml
+
+- name: Reset cluster state
+  hosts: all
+  become: yes
+  tasks:
+    - name: kubeadm reset
+      command: kubeadm reset -f
+      ignore_errors: yes
+
+    - name: Flush iptables
+      shell: |
+        iptables -F
+        iptables -t nat -F
+        iptables -t mangle -F
+        iptables -X
+      ignore_errors: yes
+
+    - name: Remove CNI config
+      file:
+        path: /etc/cni/net.d
+        state: absent
+
+    - name: Remove kubelet state
+      file:
+        path: /var/lib/kubelet
+        state: absent
+
+    - name: Remove etcd data
+      file:
+        path: /var/lib/etcd
+        state: absent
+
+    - name: Remove kubeconfig on master
+      file:
+        path: /etc/kubernetes
+        state: absent
+
+    - name: Restart containerd to clear leftover state
+      systemd:
+        name: containerd
+        state: restarted

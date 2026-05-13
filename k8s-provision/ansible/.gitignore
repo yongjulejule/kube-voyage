@@ -1,0 +1,3 @@
+.ansible*
+.kube/
+inventory.yml

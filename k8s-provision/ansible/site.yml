@@ -1,0 +1,24 @@
+---
+# 학습용 Kubernetes 클러스터 프로비저닝
+# CNI 는 의도적으로 설치하지 않음. 노드는 NotReady 상태로 끝남.
+
+- name: Common setup (all nodes)
+  hosts: all
+  become: yes
+  gather_facts: yes
+  roles:
+    - common
+    - containerd
+    - kubernetes-base
+
+- name: Master bootstrap
+  hosts: masters
+  become: yes
+  roles:
+    - kubernetes-master
+
+- name: Worker join
+  hosts: workers
+  become: yes
+  roles:
+    - kubernetes-worker

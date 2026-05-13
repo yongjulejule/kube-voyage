@@ -1,0 +1,86 @@
+---
+# kubeadm 이 요구하는 userspace 도구들. Ubuntu cloud image 에 보통 없음.
+- name: Install kubeadm prerequisite packages
+  apt:
+    name:
+      - conntrack
+      - socat
+      - ipset
+      - ebtables
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+    lock_timeout: 120
+
+- name: Ensure /etc/apt/keyrings exists
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download Kubernetes apt key
+  get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
+    dest: /tmp/k8s-release.key
+    mode: '0644'
+    force: no
+
+- name: Dearmor Kubernetes apt key
+  shell: >
+    gpg --batch --yes --dearmor
+    -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+    /tmp/k8s-release.key
+  args:
+    creates: /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+
+- name: Add Kubernetes apt repository
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
+    filename: kubernetes
+    state: present
+    update_cache: yes
+
+- name: Install kubelet, kubeadm, kubectl
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+
+- name: Hold kubernetes packages from automatic upgrade
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Get lima0 IP address
+  shell: |
+    set -o pipefail
+    ip -4 addr show lima0 | awk '/inet / {print $2}' | cut -d/ -f1
+  args:
+    executable: /bin/bash
+  register: lima0_ip
+  changed_when: false
+  failed_when: lima0_ip.stdout == ""
+
+- name: Set node_ip fact (used by master/worker roles)
+  set_fact:
+    node_ip: "{{ lima0_ip.stdout }}"
+
+- name: Configure kubelet to advertise lima0 IP
+  copy:
+    dest: /etc/default/kubelet
+    content: |
+      KUBELET_EXTRA_ARGS=--node-ip={{ node_ip }}
+    mode: '0644'
+  notify: restart kubelet
+
+- name: Ensure kubelet is enabled (will fail to start until kubeadm init/join)
+  systemd:
+    name: kubelet
+    enabled: yes
+    daemon_reload: yes

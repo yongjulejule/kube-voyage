@@ -1,0 +1,18 @@
+---
+# Worker 노드 join
+# Master role 이 set_fact 한 join_command 를 hostvars 로 가져옴.
+
+- name: Check if already joined
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+- name: Join the cluster
+  command: "{{ hostvars[groups['masters'][0]].join_command }}"
+  when: not kubelet_conf.stat.exists
+  register: join_result
+
+- name: Show join output
+  debug:
+    var: join_result.stdout_lines
+  when: join_result is changed

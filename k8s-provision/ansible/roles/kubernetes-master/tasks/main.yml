@@ -1,0 +1,63 @@
+---
+# Master 노드 부트스트랩
+# CNI 는 의도적으로 설치 안 함. kubeadm 자체는 CNI 설치 안 하니까 그냥 두면 됨.
+# 결과: 노드들이 NotReady 상태. CoreDNS pod 도 Pending. 이게 학습 시작점.
+
+- name: Check if cluster is already initialized
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_init_marker
+
+- name: Initialize Kubernetes cluster
+  command: >
+    kubeadm init
+    --apiserver-advertise-address={{ node_ip }}
+    --pod-network-cidr={{ pod_network_cidr }}
+    --service-cidr={{ service_cidr }}
+    --apiserver-cert-extra-sans=127.0.0.1
+    --apiserver-cert-extra-sans=localhost
+  when: not kubeadm_init_marker.stat.exists
+  register: kubeadm_init_result
+
+- name: Show kubeadm init output (first run only)
+  debug:
+    var: kubeadm_init_result.stdout_lines
+  when: kubeadm_init_result is changed
+
+- name: Generate fresh join command
+  command: kubeadm token create --print-join-command --ttl 1h
+  register: kubeadm_join_command
+  changed_when: false
+
+- name: Stash join command for worker play
+  set_fact:
+    join_command: "{{ kubeadm_join_command.stdout }}"
+
+- name: Ensure local .kube dir exists on control node
+  delegate_to: localhost
+  become: no
+  file:
+    path: "{{ playbook_dir }}/.kube"
+    state: directory
+    mode: '0700'
+
+- name: Fetch admin.conf to control node
+  fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ playbook_dir }}/.kube/config"
+    flat: yes
+
+- name: Patch kubeconfig server address to 127.0.0.1 (uses Lima portForward)
+  delegate_to: localhost
+  become: no
+  replace:
+    path: "{{ playbook_dir }}/.kube/config"
+    regexp: 'server: https://[^:]+:6443'
+    replace: 'server: https://127.0.0.1:6443'
+
+- name: Lock down kubeconfig permissions
+  delegate_to: localhost
+  become: no
+  file:
+    path: "{{ playbook_dir }}/.kube/config"
+    mode: '0600'
