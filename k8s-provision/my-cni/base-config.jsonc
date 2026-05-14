@@ -1,0 +1,17 @@
+// base configuration for cni 
+// set suitable subnet and copy to /etc/cni/net.d/10-my-cni.conf
+{
+	"cniVersion": "0.3.1",
+	"name": "my-bash-network",
+	"type": "my-cni",
+	"bridge": "br0",
+	"isGateway": true,
+	"ipMasq": true,
+	"ipam": {
+		"type": "host-local",
+		"subnet": "10.0.0.0/28",
+		"routes": [
+			{ "dst": "0.0.0.0/0" }
+		]
+	}
+}
