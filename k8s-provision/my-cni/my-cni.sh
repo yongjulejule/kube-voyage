@@ -38,7 +38,7 @@ function add {
   print_to_stderr "IPAM Result: ${ipam_result}"
   local assigned_ip=$(jq -r '.ips[0].address' <<<${ipam_result})
   local gw_ip=$(jq -r '.ips[0].gateway' <<<${ipam_result})
-  local subnet=${assigned_ip#*/}
+  local prefix=${assigned_ip#*/}
 
   # setup bridge network on host machine
   if ! ip link show ${bridge_name} >/dev/null 2>&1; then
@@ -46,8 +46,8 @@ function add {
   fi
   ip link set ${bridge_name} up
   ip link set mtu ${mtu} dev ${bridge_name}
-  if ! ip addr show ${bridge_name} | grep -q "${gw_ip}/${subnet}"; then
-    ip addr add ${gw_ip}/${subnet} dev ${bridge_name}
+  if ! ip addr show ${bridge_name} | grep -q "${gw_ip}/${prefix}"; then
+    ip addr add ${gw_ip}/${prefix} dev ${bridge_name}
   fi
 
   local raw_ip=${assigned_ip%/*}
