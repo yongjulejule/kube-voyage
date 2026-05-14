@@ -14,6 +14,13 @@ function validation {
   fi
 }
 
+
+# TODO
+function validate_input_json {
+  local input=$1
+  # mtu, bridge, ips[0], ips[0].address, ips[0].gateway required
+}
+
 function print_to_stderr {
   echo $@ >&2
 }
@@ -26,6 +33,7 @@ function add {
   local input_config=$(cat)
   print_to_stderr $input_config
   local bridge_name=$(jq -r '.bridge' <<<${input_config})
+  local mtu=$(jq -r '.mtu'<<<${input_config})
   local ipam_result=$(echo $input_config | /opt/cni/bin/host-local)
   print_to_stderr "IPAM Result: ${ipam_result}"
   local assigned_ip=$(jq -r '.ips[0].address' <<<${ipam_result})
@@ -37,8 +45,9 @@ function add {
     ip link add ${bridge_name} type bridge
   fi
   ip link set ${bridge_name} up
-  if ! ip addr show ${bridge_name} | grep -q "${gw_ip}/${prefix}"; then
-    ip addr add ${gw_ip}/${prefix} dev ${bridge_name}
+  ip link set mtu ${mtu} dev ${bridge_name}
+  if ! ip addr show ${bridge_name} | grep -q "${gw_ip}/${subnet}"; then
+    ip addr add ${gw_ip}/${subnet} dev ${bridge_name}
   fi
 
   local raw_ip=${assigned_ip%/*}
@@ -47,8 +56,10 @@ function add {
 
   # network 연결 - 렌선만들어서 브릿지에 꼽기
   ip link add ${host_veth_ifname} type veth peer ${pod_ifname} netns ${target_ns}
+  ip link set ${host_veth_ifname} mtu ${mtu} # lima 가상화 과정에 발생한 mtu 크기로 인한 tls timeout 이슈 해결 
   ip link set ${host_veth_ifname} master ${bridge_name}
   ip netns exec ${target_ns} ip addr add ${assigned_ip} dev ${pod_ifname}
+  ip netns exec ${target_ns} ip link set ${pod_ifname} mtu ${mtu} # lima 가상화 과정에 발생한 mtu 크기로 인한 tls timeout 이슈 해결 
 
   ip link set ${host_veth_ifname} up
   ip netns exec ${target_ns} ip link set lo up
