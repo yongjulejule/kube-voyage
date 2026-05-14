@@ -58,12 +58,13 @@ function add {
   ip link add ${host_veth_ifname} type veth peer ${pod_ifname} netns ${target_ns}
   ip link set ${host_veth_ifname} mtu ${mtu} # lima 가상화 과정에 발생한 mtu 크기로 인한 tls timeout 이슈 해결 
   ip link set ${host_veth_ifname} master ${bridge_name}
-  ip netns exec ${target_ns} ip addr add ${assigned_ip} dev ${pod_ifname}
-  ip netns exec ${target_ns} ip link set ${pod_ifname} mtu ${mtu} # lima 가상화 과정에 발생한 mtu 크기로 인한 tls timeout 이슈 해결 
-
   ip link set ${host_veth_ifname} up
   ip netns exec ${target_ns} ip link set lo up
   ip netns exec ${target_ns} ip link set ${pod_ifname} up
+  ip netns exec ${target_ns} ip addr add ${assigned_ip} dev ${pod_ifname}
+  ip netns exec ${target_ns} ip link set ${pod_ifname} mtu ${mtu} # lima 가상화 과정에 발생한 mtu 크기로 인한 tls timeout 이슈 해결 
+  ip netns exec ${target_ns} ip route add default via ${gw_ip} dev ${pod_ifname} # pod netns 에 게이트웨이로 가는 길 알려주는 라우팅 테이블 추가(up 을 먼저 하고 해야함)
+
 
   local assigned_mac=$(ip netns exec ${target_ns} ip addr show dev ${pod_ifname} | grep link/ether | awk '{ print $2 }')
 
