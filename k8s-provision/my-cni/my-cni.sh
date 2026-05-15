@@ -6,14 +6,12 @@ set -euo pipefail
 CNI_COMMAND=${CNI_COMMAND:-}
 INPUT_TMP_FILE=$(mktemp)
 
-
 function validation {
   if [[ -z ${CNI_COMMAND} ]]; then
     echo "CNI_COMMAND is not set"
     exit 1
   fi
 }
-
 
 # TODO
 function validate_input_json {
@@ -25,7 +23,7 @@ function print_to_stderr {
   echo $@ >&2
 }
 
-
+# spec ref: https://www.cni.dev/docs/spec/#add-success
 function add {
   local target_ns_path=${CNI_NETNS}
   local target_ns=${CNI_NETNS##*/}
@@ -59,6 +57,7 @@ function add {
   ip link set ${host_veth_ifname} mtu ${mtu} # lima 가상화 과정에 발생한 mtu 크기로 인한 tls timeout 이슈 해결 
   ip link set ${host_veth_ifname} master ${bridge_name}
   ip link set ${host_veth_ifname} up
+
   ip netns exec ${target_ns} ip link set lo up
   ip netns exec ${target_ns} ip link set ${pod_ifname} up
   ip netns exec ${target_ns} ip addr add ${assigned_ip} dev ${pod_ifname}
@@ -83,8 +82,33 @@ function add {
   }'
 }
 
+# ref: https://www.cni.dev/docs/spec/#del-remove-container-from-network-or-un-apply-modifications
+# CNI_NETNS 에 있는 CNI_IFNAME 인터페이스를 날려야함 + ADD 에서 한 모든 변경사항을 undo 해야함 . lifo 로..
 function del {
-  echo "DEL command received, no action taken" >&2
+  local target_ns_path=${CNI_NETNS}
+  local target_ns=${CNI_NETNS##*/}
+  local pod_ifname=${CNI_IFNAME}
+
+  # 네트워크 네임스페이스, veth 삭제
+  if [ -n "${target_ns_path}" ] && [ -f "${target_ns_path}" ]; then
+    ip netns exec ${target_ns} ip link del ${pod_ifname} 2>/dev/null || true
+
+    # -----------------------------------------------------------------------
+    # 이후 커널이 해주는것:
+    # 1. 파드 IP 삭제: ip netns exec ${target_ns} ip addr del <pod-ip> dev eth0
+    # 2. 라우팅 테이블 삭제: ip netns exec ${target_ns} ip route del default via <gw>
+    # 3. 호스트 veth 반대편 삭제: ip link del veth-XXX
+    # 4. 브릿지 포트 뽑음: ip link set veth-XXX nomaster
+    # 5. 브릿지 FDB(MAC 주소록) 갱신: bridge fdb del <파드_MAC> dev veth-XXX master br0
+    # -----------------------------------------------------------------------
+  fi
+
+  # IPAM 자원 반납 
+  export CNI_COMMAND=DEL
+  cat | /opt/cni/bin/host-local >/dev/null 2>&1
+
+  echo "{}"
+  exit 0
 }
 
 function version { 
