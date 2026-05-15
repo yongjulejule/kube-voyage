@@ -57,7 +57,7 @@ limactl delete --force k8s-master k8s-worker-1 k8s-worker-2
 
 ## 디자인 결정 사항
 
-- **Pod CIDR**: `10.244.0.0/16` (Flannel default).
+- **Pod CIDR**: `10.244.0.0/16`
   Lima shared 의 `192.168.105.0/24` 와 안 겹치게 일부러 10.x 대역 선택.
 - **kubelet `--node-ip`**: lima0 인터페이스 IP 로 강제.
   안 그러면 kubelet 이 SLIRP eth0 (`192.168.5.x`) 를 advertise 해서 worker join 실패.
@@ -66,11 +66,3 @@ limactl delete --force k8s-master k8s-worker-1 k8s-worker-2
   CNI 학습에 집중하기 위해 kube-proxy 는 정상 작동하는 상태로 둠.
   나중에 본인 CNI 가 kube-proxy 까지 대체하고 싶으면 그때 `--skip-phases=addon/kube-proxy` 추가.
 
-## 다음 단계 (CNI 학습)
-
-1. `kubectl get pods -n kube-system` → CoreDNS 가 Pending (CNI 없어서 IP 못 받음)
-2. `kubectl describe pod -n kube-system coredns-...` → "network plugin not ready" 확인
-3. `/etc/cni/net.d/` 비어있음 확인 (`ls` 또는 `find`)
-4. 직접 만든 CNI conflist 를 `/etc/cni/net.d/10-mycni.conflist` 로 배포
-5. 직접 만든 CNI 바이너리를 `/opt/cni/bin/mycni` 로 배포
-6. kubelet 이 CNI 인지하면 노드 Ready 됨
